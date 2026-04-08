@@ -7,9 +7,14 @@
     "name": "DJMindluxx",
     "email": "djmindluxx@gmail.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DJMindluxx/mindos.git"
+  },
   "build": {
     "appId": "com.mindluxx.mindos",
     "productName": "MindOS",
+    "publish": null,
     "copyright": "© 2026 Mindluxx",
     "directories": {
       "output": "../electron-dist",

@@ -42,8 +42,6 @@ jobs:
       - name: Windows .exe bauen
         working-directory: electron
         run: npm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Windows Installer hochladen
         uses: actions/upload-artifact@v4
@@ -111,7 +109,6 @@ jobs:
         working-directory: electron
         run: npm run build:mac
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Code-Signing deaktiviert (kein Apple Developer Account nötig)
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
