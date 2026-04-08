@@ -16,15 +16,14 @@
     "productName": "MindOS",
     "publish": null,
     "copyright": "© 2026 Mindluxx",
+    "asar": false,
     "directories": {
       "output": "../electron-dist",
       "buildResources": "icons"
     },
     "files": [
       "main.js",
-      "icons/**",
-      "../dist/**",
-      "!../dist/public/**/.DS_Store"
+      "icons/**"
     ],
     "extraResources": [
       {

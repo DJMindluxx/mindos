@@ -1,44 +1,58 @@
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage } = require('electron');
-const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 
 let mainWindow = null;
 let tray = null;
-let serverProcess = null;
-const PORT = 5174; // Electron-eigener Port, nicht 5000
+const PORT = 5174;
 
-// ── Server starten ────────────────────────────────────────────────────────────
+// ── Ressourcen-Pfad (funktioniert geverpackt + in dev) ────────────────────────
+function getResourcesPath() {
+  // In gepackter App: resources/ neben der App
+  // In Entwicklung: project root
+  if (app.isPackaged) {
+    return process.resourcesPath;
+  }
+  return path.join(__dirname, '..');
+}
+
+// ── Server inline laden (kein separater Node-Prozess!) ────────────────────────
 function startServer() {
-  const serverPath = path.join(__dirname, '..', 'dist', 'index.cjs');
-  serverProcess = spawn(process.execPath, [serverPath], {
-    env: {
-      ...process.env,
-      NODE_ENV: 'production',
-      PORT: String(PORT),
-      DB_PATH: path.join(app.getPath('userData'), 'mindos.db'),
-    },
-    stdio: 'pipe',
-  });
+  const resourcesPath = getResourcesPath();
+  const serverPath = path.join(resourcesPath, 'dist', 'index.cjs');
 
-  serverProcess.stdout.on('data', (d) => console.log('[server]', d.toString().trim()));
-  serverProcess.stderr.on('data', (d) => console.error('[server]', d.toString().trim()));
-  serverProcess.on('exit', (code) => {
-    console.log('[server] exited with code', code);
-  });
+  // Umgebung setzen BEVOR der Server geladen wird
+  process.env.NODE_ENV = 'production';
+  process.env.PORT = String(PORT);
+  process.env.DB_PATH = path.join(app.getPath('userData'), 'mindos.db');
+
+  try {
+    require(serverPath);
+    console.log('[mindos] Server gestartet auf Port', PORT);
+  } catch (err) {
+    console.error('[mindos] Server-Fehler:', err.message);
+    console.error('[mindos] Gesuchter Pfad:', serverPath);
+  }
 }
 
 // ── Warten bis Server antwortet ───────────────────────────────────────────────
-function waitForServer(retries = 30) {
+function waitForServer(retries = 40) {
   return new Promise((resolve, reject) => {
     function attempt(n) {
-      http.get(`http://127.0.0.1:${PORT}/api/settings`, (res) => {
-        if (res.statusCode < 500) resolve();
-        else attempt(n - 1);
-      }).on('error', () => {
-        if (n <= 0) return reject(new Error('Server did not start'));
-        setTimeout(() => attempt(n - 1), 500);
+      const req = http.get(`http://127.0.0.1:${PORT}/api/settings`, (res) => {
+        res.resume(); // Body verwerfen
+        if (res.statusCode < 500) {
+          resolve();
+        } else {
+          retry(n);
+        }
       });
+      req.on('error', () => retry(n));
+      req.setTimeout(1000, () => { req.destroy(); retry(n); });
+    }
+    function retry(n) {
+      if (n <= 0) return reject(new Error('Server hat nicht gestartet'));
+      setTimeout(() => attempt(n - 1), 300);
     }
     attempt(retries);
   });
@@ -48,18 +62,20 @@ function waitForServer(retries = 30) {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 430,
-    height: 932,
+    height: 900,
     minWidth: 375,
     minHeight: 700,
     maxWidth: 600,
     backgroundColor: '#0c0a0d',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
-    frame: false,
+    // Frame aktiviert für Windows — eigene Titelleiste wäre extra Aufwand
+    frame: true,
+    autoHideMenuBar: true, // Menüleiste verstecken (Alt zum einblenden)
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
     icon: path.join(__dirname, 'icons', 'icon.png'),
+    title: 'MindOS',
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
@@ -78,85 +94,53 @@ function createTray() {
   try {
     const iconPath = path.join(__dirname, 'icons', 'icon-tray.png');
     const icon = nativeImage.createFromPath(iconPath);
-    tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    const resized = icon.isEmpty()
+      ? nativeImage.createFromPath(path.join(__dirname, 'icons', 'icon.png')).resize({ width: 16, height: 16 })
+      : icon.resize({ width: 16, height: 16 });
+
+    tray = new Tray(resized);
     const contextMenu = Menu.buildFromTemplate([
       { label: 'MindOS öffnen', click: () => { if (mainWindow) mainWindow.show(); else createWindow(); } },
       { type: 'separator' },
       { label: 'Beenden', click: () => app.quit() },
     ]);
-    tray.setToolTip('MindOS');
+    tray.setToolTip('MindOS — Business Cockpit');
     tray.setContextMenu(contextMenu);
-    tray.on('click', () => { if (mainWindow) mainWindow.show(); });
+    tray.on('double-click', () => { if (mainWindow) mainWindow.show(); else createWindow(); });
   } catch (e) {
-    console.warn('Tray konnte nicht erstellt werden:', e.message);
+    console.warn('[mindos] Tray nicht verfügbar:', e.message);
   }
-}
-
-// ── App-Menü (macOS) ──────────────────────────────────────────────────────────
-function setupMenu() {
-  const template = [
-    {
-      label: 'MindOS',
-      submenu: [
-        { label: 'Über MindOS', role: 'about' },
-        { type: 'separator' },
-        { label: 'Beenden', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
-      ],
-    },
-    {
-      label: 'Bearbeiten',
-      submenu: [
-        { role: 'undo', label: 'Rückgängig' },
-        { role: 'redo', label: 'Wiederholen' },
-        { type: 'separator' },
-        { role: 'cut', label: 'Ausschneiden' },
-        { role: 'copy', label: 'Kopieren' },
-        { role: 'paste', label: 'Einfügen' },
-        { role: 'selectAll', label: 'Alles auswählen' },
-      ],
-    },
-    {
-      label: 'Ansicht',
-      submenu: [
-        { role: 'reload', label: 'Neu laden' },
-        { role: 'toggleDevTools', label: 'Entwicklertools' },
-        { type: 'separator' },
-        { role: 'resetZoom', label: 'Zoom zurücksetzen' },
-        { role: 'zoomIn', label: 'Vergrößern' },
-        { role: 'zoomOut', label: 'Verkleinern' },
-      ],
-    },
-  ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-  setupMenu();
+  // Einzelne Instanz sicherstellen
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    app.quit();
+    return;
+  }
+  app.on('second-instance', () => {
+    if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+  });
+
   startServer();
+
   try {
     await waitForServer();
   } catch (e) {
-    console.error('Server-Start fehlgeschlagen:', e.message);
+    console.error('[mindos] Server-Start fehlgeschlagen:', e.message);
+    // Trotzdem Fenster öffnen — zeigt Fehlerseite statt einzufrieren
   }
+
   createWindow();
   createTray();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
 });
 
 app.on('window-all-closed', () => {
-  // Auf macOS läuft die App weiter (Tray), auf Windows/Linux beenden
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
-  if (serverProcess) {
-    serverProcess.kill();
-    serverProcess = null;
-  }
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });

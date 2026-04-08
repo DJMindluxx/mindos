@@ -3,7 +3,9 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "@shared/schema";
 import path from "path";
 
-const sqlite = new Database(path.resolve("data.db"));
+// DB_PATH wird von Electron gesetzt (userData), sonst lokale data.db
+const dbPath = process.env.DB_PATH || path.resolve("data.db");
+const sqlite = new Database(dbPath);
 
 // Enable WAL mode for better performance
 sqlite.pragma("journal_mode = WAL");
