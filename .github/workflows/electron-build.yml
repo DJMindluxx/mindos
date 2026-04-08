@@ -3,8 +3,12 @@ name: MindOS Electron Build
 on:
   push:
     tags:
-      - 'v*'          # Triggert bei Tags wie v1.0.0, v1.1.0 usw.
-  workflow_dispatch:  # Manuell aus GitHub UI auslösbar
+      - 'v*'
+  workflow_dispatch:
+
+# Schreibrechte für Releases
+permissions:
+  contents: write
 
 jobs:
   # ── Windows Build (.exe Installer) ─────────────────────────────────────────
@@ -21,7 +25,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Python einrichten (für ReportLab PDF)
+      - name: Python einrichten
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -43,20 +47,19 @@ jobs:
         working-directory: electron
         run: npm run build:win
 
-      - name: Windows Installer hochladen
+      - name: Windows Artifact hochladen
         uses: actions/upload-artifact@v4
         with:
           name: MindOS-Windows
           path: electron-dist/*.exe
           retention-days: 30
 
-      - name: Release Asset hochladen
+      - name: Als GitHub Release veröffentlichen
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: electron-dist/*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
 
   # ── macOS Build (.dmg) ──────────────────────────────────────────────────────
   build-macos:
@@ -72,7 +75,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Python einrichten (für ReportLab PDF)
+      - name: Python einrichten
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -86,7 +89,7 @@ jobs:
       - name: App bauen (Vite + esbuild)
         run: npm run build
 
-      - name: ICNS Icon erstellen (macOS)
+      - name: ICNS Icon erstellen
         run: |
           mkdir -p electron/icons/icon.iconset
           sips -z 16 16   electron/icons/icon.png --out electron/icons/icon.iconset/icon_16x16.png
@@ -99,7 +102,6 @@ jobs:
           sips -z 512 512 electron/icons/icon.png --out electron/icons/icon.iconset/icon_256x256@2x.png
           cp electron/icons/icon.png electron/icons/icon.iconset/icon_512x512.png
           iconutil -c icns electron/icons/icon.iconset -o electron/icons/icon.icns
-          echo "ICNS erstellt"
 
       - name: Electron-Abhängigkeiten installieren
         working-directory: electron
@@ -109,20 +111,18 @@ jobs:
         working-directory: electron
         run: npm run build:mac
         env:
-          # Code-Signing deaktiviert (kein Apple Developer Account nötig)
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: macOS DMG hochladen
+      - name: macOS Artifact hochladen
         uses: actions/upload-artifact@v4
         with:
           name: MindOS-macOS
           path: electron-dist/*.dmg
           retention-days: 30
 
-      - name: Release Asset hochladen
+      - name: Als GitHub Release veröffentlichen
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: electron-dist/*.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
