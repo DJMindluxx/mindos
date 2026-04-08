@@ -1,0 +1,78 @@
+{
+  "name": "mindos",
+  "version": "1.0.0",
+  "description": "MindOS — Business Cockpit für Mindluxx",
+  "main": "main.js",
+  "author": {
+    "name": "DJMindluxx",
+    "email": "djmindluxx@gmail.com"
+  },
+  "build": {
+    "appId": "com.mindluxx.mindos",
+    "productName": "MindOS",
+    "copyright": "© 2026 Mindluxx",
+    "directories": {
+      "output": "../electron-dist",
+      "buildResources": "icons"
+    },
+    "files": [
+      "main.js",
+      "icons/**",
+      "../dist/**",
+      "!../dist/public/**/.DS_Store"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "dist",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.finance",
+      "icon": "icons/icon.icns",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "darkModeSupport": true
+    },
+    "win": {
+      "icon": "icons/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "linux": {
+      "icon": "icons/icon.png",
+      "target": ["AppImage"],
+      "category": "Finance"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "icons/icon.ico",
+      "uninstallerIcon": "icons/icon.ico",
+      "installerHeaderIcon": "icons/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MindOS"
+    },
+    "dmg": {
+      "title": "MindOS",
+      "background": null,
+      "window": { "width": 540, "height": 380 }
+    }
+  },
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

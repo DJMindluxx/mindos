@@ -1,0 +1,131 @@
+name: MindOS Electron Build
+
+on:
+  push:
+    tags:
+      - 'v*'          # Triggert bei Tags wie v1.0.0, v1.1.0 usw.
+  workflow_dispatch:  # Manuell aus GitHub UI auslösbar
+
+jobs:
+  # ── Windows Build (.exe Installer) ─────────────────────────────────────────
+  build-windows:
+    name: Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Python einrichten (für ReportLab PDF)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python-Abhängigkeiten installieren
+        run: pip install reportlab pillow
+
+      - name: App-Abhängigkeiten installieren
+        run: npm ci
+
+      - name: App bauen (Vite + esbuild)
+        run: npm run build
+
+      - name: Electron-Abhängigkeiten installieren
+        working-directory: electron
+        run: npm install
+
+      - name: Windows .exe bauen
+        working-directory: electron
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Windows Installer hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: MindOS-Windows
+          path: electron-dist/*.exe
+          retention-days: 30
+
+      - name: Release Asset hochladen
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: electron-dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── macOS Build (.dmg) ──────────────────────────────────────────────────────
+  build-macos:
+    name: macOS (.dmg)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Python einrichten (für ReportLab PDF)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python-Abhängigkeiten installieren
+        run: pip install reportlab pillow
+
+      - name: App-Abhängigkeiten installieren
+        run: npm ci
+
+      - name: App bauen (Vite + esbuild)
+        run: npm run build
+
+      - name: ICNS Icon erstellen (macOS)
+        run: |
+          mkdir -p electron/icons/icon.iconset
+          sips -z 16 16   electron/icons/icon.png --out electron/icons/icon.iconset/icon_16x16.png
+          sips -z 32 32   electron/icons/icon.png --out electron/icons/icon.iconset/icon_16x16@2x.png
+          sips -z 32 32   electron/icons/icon.png --out electron/icons/icon.iconset/icon_32x32.png
+          sips -z 64 64   electron/icons/icon.png --out electron/icons/icon.iconset/icon_32x32@2x.png
+          sips -z 128 128 electron/icons/icon.png --out electron/icons/icon.iconset/icon_128x128.png
+          sips -z 256 256 electron/icons/icon.png --out electron/icons/icon.iconset/icon_128x128@2x.png
+          sips -z 256 256 electron/icons/icon.png --out electron/icons/icon.iconset/icon_256x256.png
+          sips -z 512 512 electron/icons/icon.png --out electron/icons/icon.iconset/icon_256x256@2x.png
+          cp electron/icons/icon.png electron/icons/icon.iconset/icon_512x512.png
+          iconutil -c icns electron/icons/icon.iconset -o electron/icons/icon.icns
+          echo "ICNS erstellt"
+
+      - name: Electron-Abhängigkeiten installieren
+        working-directory: electron
+        run: npm install
+
+      - name: macOS .dmg bauen
+        working-directory: electron
+        run: npm run build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code-Signing deaktiviert (kein Apple Developer Account nötig)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: macOS DMG hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: MindOS-macOS
+          path: electron-dist/*.dmg
+          retention-days: 30
+
+      - name: Release Asset hochladen
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: electron-dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
