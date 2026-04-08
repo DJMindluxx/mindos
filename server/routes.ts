@@ -68,7 +68,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const pdfPath    = join(tmpdir(), `mindos_export_${Date.now()}.pdf`);
-      const scriptPath = join(__dirname, "generate_invoice_pdf.py");
+      // Pfad zum Python-Script: erst neben index.cjs, dann in resources/dist/ (Electron)
+      let scriptPath = join(__dirname, "generate_invoice_pdf.py");
+      if (!require("fs").existsSync(scriptPath) && process.resourcesPath) {
+        scriptPath = join(process.resourcesPath, "dist", "generate_invoice_pdf.py");
+      }
 
       // Use spawn so we can pipe stdin reliably
       await new Promise<void>((resolve, reject) => {
